@@ -1,5 +1,7 @@
 # License plate recognition model using embedded (cctv)
 
+- used SSD(sigle shot detector)
+
 ## example)
 
 ![201214_095328559822](https://user-images.githubusercontent.com/46080945/102562795-2f64f500-411b-11eb-918a-5b3f0cc23f96.jpg)
