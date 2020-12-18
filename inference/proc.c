@@ -396,27 +396,11 @@ void subsOnlyNode(NodeInfo* destNodeInfo,int destIdx,Node* sourceNode){
 	insertNodeAt(destNodeInfo,destNode,destIdx);
 }
 Bbox* getLocalResult() {
-	////printf("Start getMaxConfBox\n");
-	// iou/ios
-	filterBbox(&lNodeInfo,LIOUTHRESH,LIOSTHRESH);
-	////printf("finished filtering\n");
-	////printf("filtered head node %s\n",lNodeInfo.head->bbox->name);
+	// iou
+	filterBboxIou(&lNodeInfo,LIOUTHRESH);
 	// 결과로 쓸 박스
 	Bbox* box=getMaxConfBox(&lNodeInfo);
 	clearNodeInfo(&lNodeInfo);
-	/*
-	float maxConf = 0;
-	for(Node* node=lNodeInfo.head;node!=NULL;node=node->next){
-		////printf("conf %f\n",node->bbox->conf);
-		if(node->bbox->conf>maxConf){
-			maxConf=node->bbox->conf;
-			box=node->bbox;
-			////printf("box name %s\n",node->bbox->name);
-		}
-	}
-	*/
-	////printf("return box name %s\n",box->name);
-	//printf("box : %s\n",box->name);
 	return box;
 }
 Bbox* getMaxConfBox(NodeInfo* nodeInfo){
@@ -476,7 +460,6 @@ char* getPlateString(char* recoPlateNum) {
 	// filterBbox(&rNodeInfo,RIOUTHRESH,RIOSTHRESH);
 	// 1. 박스 파싱 (7개의 박스만 나오게끔)
 	NodeInfo* resNodeInfo=parseBboxes(&rNodeInfo);
-	//printf("fin parse\n");
 
 	for(Node* node=resNodeInfo->head;node!=NULL;node=node->next){
 		////printf("r name %s\n", node->bbox->name);
@@ -1859,219 +1842,203 @@ int makeLocalImg(char* filename){
 	ETRY;
 }
 int makeRecogImg(Bbox* bbox,char* filename){
-	TRY{
-		////printf("call makeRecogImg\n");
-		int width,height,channels;
-		IMGTYPE* img=stbi_load(filename,&width,&height,&channels,0);
-		//printf("Load IMG width : %d, height : %d, channel : %d\n",width,height,channels);
-		if(img==NULL){
-			printf("NULL img\n");
-			return 0;
-		}
-
-		/*
-		// 계수값을 곱해줌
-		for(int c=0;c<channels;c++){
-			for(int i=0;i<height;i++){
-				for(int j=0;j<width;j++){
-					if(channels==1){
-						// black
-						img[channels*(width*i+j)+c]/=DIVPAR_BLACK;
-					}
-					else if(c==0){
-						// red
-						img[channels*(width*i+j)+c]/=DIVPAR_R;
-					}
-					else if(c==1){
-						// green
-						img[channels*(width*i+j)+c]/=DIVPAR_G;
-					}
-					else if(c==2){
-						// blue
-						img[channels*(width*i+j)+c]/=DIVPAR_B;
-					}
-				}
-			}
-		}
-		*/
-		int xmin=bbox->rect->xline->low;
-		int ymin=bbox->rect->yline->low;
-		int xmax=bbox->rect->xline->high;
-		int ymax=bbox->rect->yline->high;
-
-		int crop_w=(width*xmax/300)-(width*xmin/300);
-		int crop_h=(height*ymax/300)-(height*ymin/300);
-		IMGTYPE* crop_img=(IMGTYPE*)malloc(crop_w*crop_h*channels);
-
-		for(int c=0;c<channels;c++){
-			int idx=-1;
-			for(int i=height*ymin/300;i<height*ymax/300;i++){
-				for(int j=width*xmin/300;j<width*xmax/300;j++){
-					idx++;
-					crop_img[channels*(idx)+c]=img[channels*(width*i+j)+c];
-				}
-			}
-		}
-		
-		stbi_write_jpg("crop_img.jpg",crop_w,crop_h,channels,crop_img,0);
-		//crop_img=stbi_load("crop_img.jpg",&crop_w,&crop_h,&channels,0);
-		/*
-		FILE* fp_crop;
-		fp_crop=fopen("./crop_img.bgr","wb");
-		for(int c=channels-1;c>=0;c--){
-			for(int wh=0;wh<crop_w*crop_h;wh++){
-				fwrite(&(crop_img[wh*channels+c]),1,1,fp_crop);
-			}
-		}
-		fclose(fp_crop);
-		*/
-		/*
-		int spc_w=crop_w;
-		int spc_h=crop_h*1.5;
-		idx=-1;
-		IMGTYPE* spc_img=(IMGTYPE*)malloc(spc_w*spc_h*channels);
-		
-		for(int i=0;i<spc_w*spc_h*channels;i++){
-			spc_img[i]=rand() % 256;
-		}
-
-		int spc_cnt=-1;
-		for(int i=0;i<spc_w*spc_h*channels;i++){
-			if(i>=spc_w*spc_h*channels*0.125 && i<spc_w*spc_h*channels*0.875){
-				spc_cnt++;
-				spc_img[i]=crop_img[spc_cnt];
-			}
-		}
-		*/
-
-		/*
-		printf("crop_w : %d, crop_h:%d\n",crop_w,crop_h);
-		int spc_w=crop_w;
-		int spc_h=crop_w;
-		int idx=-1;
-		int crop_idx=-1;
-		IMGTYPE* spc_img=(IMGTYPE*)malloc(spc_w*spc_h*channels);
-
-		for(int c=0;c<channels;c++){
-			for(int i=0;i<spc_h;i++){
-				for(int j=0;j<spc_w;j++){
-					idx++;
-					if(crop_idx<crop_w*crop_h){
-						crop_idx++;
-						spc_img[idx]=crop_img[crop_idx];
-					}
-					else{
-						//spc_img[idx]=rand() % 256;
-						spc_img[idx]=0;
-					}
-				}
-			}
-		}
-		*/
-
-		int out_w=300,out_h=300;
-		IMGTYPE* out_img=(IMGTYPE*)malloc(out_w*out_h*channels);
-		int ret=stbir_resize_uint8(crop_img,crop_w,crop_h,0,out_img,out_w,out_h,0,channels);
-		//int ret=stbir_resize_uint8(spc_img,spc_w,spc_h,0,out_img,out_w,out_h,0,channels);
-		if(ret==0){
-			printf("resize error\n");
-			return 0;
-		}
-		/*
-		int out416_w=416,out416_h=416;
-		IMGTYPE* out416_img=(IMGTYPE*)malloc(out416_w*out416_h*channels);
-		ret=stbir_resize_uint8(crop_img,crop_w,crop_h,0,out416_img,out416_w,out416_h,0,channels);
-		*/
-		CASTTYPE* int_img=(CASTTYPE*)malloc(sizeof(CASTTYPE)*out_w*out_h*channels);
-		stbi_write_jpg("recog_img.jpg",out_w,out_h,channels,out_img,0);
-		//unsigned char* emty_img=(unsigned char*)malloc(out_w*out_h*channels);
-		for(int i=0;i<out_w*out_h*channels;i++){
-			int_img[i]=(CASTTYPE)(out_img[i]);
-			//float_img[i]=(float)(out_img[i]);
-			//int_img[i]=int_img[i]*100/255;
-		}
-		/*
-		CASTTYPE* int_416img=(CASTTYPE*)malloc(sizeof(CASTTYPE)*out416_w*out416_h*channels);
-		stbi_write_jpg("recog_416img.jpg",out416_w,out416_h,channels,out416_img,0);
-		//unsigned char* emty_img=(unsigned char*)malloc(out_w*out_h*channels);
-		for(int i=0;i<out416_w*out416_h*channels;i++){
-			int_416img[i]=(CASTTYPE)(out416_img[i]);
-			//float_img[i]=(float)(out_img[i]);
-			//int_img[i]=int_img[i]*100/255;
-		}
-		*/
-		//printf("size : %ld\n",sizeof(float_img));
-
-		FILE* fp;
-		fp=fopen("./recog_img.bgr","wb");
-		
-		if(channels==1){
-			for(int c=0;c<channels;c++){
-				for(int wh=0;wh<out_w*out_h;wh++){
-					fwrite(&(int_img[channels*wh+c]),1,1,fp);
-				}
-			}
-			for(int c=0;c<channels;c++){
-				for(int wh=0;wh<out_w*out_h;wh++){
-					fwrite(&(int_img[channels*wh+c]),1,1,fp);
-					
-				}
-			}
-			for(int c=0;c<channels;c++){
-				for(int wh=0;wh<out_w*out_h;wh++){
-					fwrite(&(int_img[channels*wh+c]),1,1,fp);
-				}
-			}
-		}
-		else if(channels==3){
-			//printf("channel 3 img\n");
-			//printf("width : %d, height : %d, channel : %d\n",out_w,out_h,channels);
-			for(int c=channels-1;c>=0;c--){
-				for(int wh=0;wh<out_w*out_h;wh++){
-					fwrite(&(int_img[channels*wh+c]),1,1,fp);
-				}
-			}
-		}
-		fclose(fp);
-		/*
-		fp=fopen("./recog_416img.bgr","wb");
-		if(channels==1){
-			for(int c=0;c<channels;c++){
-				for(int wh=0;wh<out416_w*out416_h;wh++){
-					fwrite(&(int_416img[channels*wh+c]),1,1,fp);
-				}
-			}
-			for(int c=0;c<channels;c++){
-				for(int wh=0;wh<out416_w*out416_h;wh++){
-					fwrite(&(int_416img[channels*wh+c]),1,1,fp);
-				}
-			}
-			for(int c=0;c<channels;c++){
-				for(int wh=0;wh<out416_w*out416_h;wh++){
-					fwrite(&(int_416img[channels*wh+c]),1,1,fp);		
-				}
-			}
-		}
-		else if(channels==3){
-			//printf("channel 3 img\n");
-			//printf("width : %d, height : %d, channel : %d\n",out416_w,out416_h,channels);
-			for(int c=channels-1;c>=0;c--){
-				for(int wh=0;wh<out416_w*out416_h;wh++){
-					fwrite(&(int_416img[channels*wh+c]),1,1,fp);
-				}
-			}
-		}
-		fclose(fp);
-		*/
-		stbi_image_free(img);
-		stbi_image_free(crop_img);
-		stbi_image_free(out_img);
-		free(int_img);
-		return 1;
-	}
-	CATCH{
-		printf("make recognize img failed\n");
+	////printf("call makeRecogImg\n");
+	int width,height,channels;
+	IMGTYPE* img=stbi_load(filename,&width,&height,&channels,0);
+	//printf("Load IMG width : %d, height : %d, channel : %d\n",width,height,channels);
+	if(img==NULL){
+		printf("NULL img\n");
 		return 0;
 	}
-	ETRY;
+	/*
+	// 계수값을 곱해줌
+	for(int c=0;c<channels;c++){
+		for(int i=0;i<height;i++){
+			for(int j=0;j<width;j++){
+				if(channels==1){
+					// black
+					img[channels*(width*i+j)+c]/=DIVPAR_BLACK;
+				}
+				else if(c==0){
+					// red
+					img[channels*(width*i+j)+c]/=DIVPAR_R;
+				}
+				else if(c==1){
+					// green
+					img[channels*(width*i+j)+c]/=DIVPAR_G;
+				}
+			else if(c==2){
+					// blue
+					img[channels*(width*i+j)+c]/=DIVPAR_B;
+				}
+			}
+		}
+	}
+	*/
+	int xmin=bbox->rect->xline->low;
+	int ymin=bbox->rect->yline->low;
+	int xmax=bbox->rect->xline->high;
+	int ymax=bbox->rect->yline->high;
+	int crop_w=(width*xmax/300)-(width*xmin/300);
+	int crop_h=(height*ymax/300)-(height*ymin/300);
+	IMGTYPE* crop_img=(IMGTYPE*)malloc(crop_w*crop_h*channels);
+	for(int c=0;c<channels;c++){
+		int idx=-1;
+		for(int i=height*ymin/300;i<height*ymax/300;i++){
+			for(int j=width*xmin/300;j<width*xmax/300;j++){
+				idx++;
+				crop_img[channels*(idx)+c]=img[channels*(width*i+j)+c];
+			}
+		}
+	}
+
+	stbi_write_jpg("crop_img.jpg",crop_w,crop_h,channels,crop_img,0);
+	//crop_img=stbi_load("crop_img.jpg",&crop_w,&crop_h,&channels,0);
+	/*
+	FILE* fp_crop;
+	fp_crop=fopen("./crop_img.bgr","wb");
+	for(int c=channels-1;c>=0;c--){
+		for(int wh=0;wh<crop_w*crop_h;wh++){
+			fwrite(&(crop_img[wh*channels+c]),1,1,fp_crop);
+		}
+	}
+	fclose(fp_crop);
+	*/
+	/*
+	int spc_w=crop_w;
+	int spc_h=crop_h*1.5;
+	idx=-1;
+	IMGTYPE* spc_img=(IMGTYPE*)malloc(spc_w*spc_h*channels);
+	
+	for(int i=0;i<spc_w*spc_h*channels;i++){
+		spc_img[i]=rand() % 256;
+	}
+	int spc_cnt=-1;
+	for(int i=0;i<spc_w*spc_h*channels;i++){
+		if(i>=spc_w*spc_h*channels*0.125 && i<spc_w*spc_h*channels*0.875){
+			spc_cnt++;
+			spc_img[i]=crop_img[spc_cnt];
+		}
+	}
+	*/
+	/*
+	printf("crop_w : %d, crop_h:%d\n",crop_w,crop_h);
+	int spc_w=crop_w;
+	int spc_h=crop_w;
+	int idx=-1;
+	int crop_idx=-1;
+	IMGTYPE* spc_img=(IMGTYPE*)malloc(spc_w*spc_h*channels);
+	for(int c=0;c<channels;c++){
+		for(int i=0;i<spc_h;i++){
+			for(int j=0;j<spc_w;j++){
+				idx++;
+				if(crop_idx<crop_w*crop_h){
+					crop_idx++;
+					spc_img[idx]=crop_img[crop_idx];
+				}
+				else{
+					//spc_img[idx]=rand() % 256;
+					spc_img[idx]=0;
+				}
+			}
+		}
+	}
+	*/
+	int out_w=300,out_h=300;
+	IMGTYPE* out_img=(IMGTYPE*)malloc(out_w*out_h*channels);
+	int ret=stbir_resize_uint8(crop_img,crop_w,crop_h,0,out_img,out_w,out_h,0,channels);
+	//int ret=stbir_resize_uint8(spc_img,spc_w,spc_h,0,out_img,out_w,out_h,0,channels);
+	if(ret==0){
+		printf("resize error\n");
+		return 0;
+	}
+	/*
+	int out416_w=416,out416_h=416;
+	IMGTYPE* out416_img=(IMGTYPE*)malloc(out416_w*out416_h*channels);
+	ret=stbir_resize_uint8(crop_img,crop_w,crop_h,0,out416_img,out416_w,out416_h,0,channels);
+	*/
+	CASTTYPE* int_img=(CASTTYPE*)malloc(sizeof(CASTTYPE)*out_w*out_h*channels);
+	stbi_write_jpg("recog_img.jpg",out_w,out_h,channels,out_img,0);
+	//unsigned char* emty_img=(unsigned char*)malloc(out_w*out_h*channels);
+	for(int i=0;i<out_w*out_h*channels;i++){
+		int_img[i]=(CASTTYPE)(out_img[i]);
+		//float_img[i]=(float)(out_img[i]);
+		//int_img[i]=int_img[i]*100/255;
+	}
+	/*
+	CASTTYPE* int_416img=(CASTTYPE*)malloc(sizeof(CASTTYPE)*out416_w*out416_h*channels);
+	stbi_write_jpg("recog_416img.jpg",out416_w,out416_h,channels,out416_img,0);
+	//unsigned char* emty_img=(unsigned char*)malloc(out_w*out_h*channels);
+	for(int i=0;i<out416_w*out416_h*channels;i++){
+		int_416img[i]=(CASTTYPE)(out416_img[i]);
+		//float_img[i]=(float)(out_img[i]);
+		//int_img[i]=int_img[i]*100/255;
+	}
+	*/
+	//printf("size : %ld\n",sizeof(float_img));
+	FILE* fp;
+	fp=fopen("./recog_img.bgr","wb");
+	
+	if(channels==1){
+		for(int c=0;c<channels;c++){
+			for(int wh=0;wh<out_w*out_h;wh++){
+				fwrite(&(int_img[channels*wh+c]),1,1,fp);
+			}
+		}
+		for(int c=0;c<channels;c++){
+			for(int wh=0;wh<out_w*out_h;wh++){
+				fwrite(&(int_img[channels*wh+c]),1,1,fp);		
+			}
+		}
+		for(int c=0;c<channels;c++){
+			for(int wh=0;wh<out_w*out_h;wh++){
+				fwrite(&(int_img[channels*wh+c]),1,1,fp);
+			}
+		}
+	}
+	else if(channels==3){
+		//printf("channel 3 img\n");
+		//printf("width : %d, height : %d, channel : %d\n",out_w,out_h,channels);
+		for(int c=channels-1;c>=0;c--){
+		for(int wh=0;wh<out_w*out_h;wh++){
+				fwrite(&(int_img[channels*wh+c]),1,1,fp);
+			}
+		}
+	}
+	fclose(fp);
+/*
+	fp=fopen("./recog_416img.bgr","wb");
+	if(channels==1){
+		for(int c=0;c<channels;c++){
+			for(int wh=0;wh<out416_w*out416_h;wh++){
+				fwrite(&(int_416img[channels*wh+c]),1,1,fp);
+			}
+		}
+		for(int c=0;c<channels;c++){
+			for(int wh=0;wh<out416_w*out416_h;wh++){
+				fwrite(&(int_416img[channels*wh+c]),1,1,fp);
+			}
+		}
+	for(int c=0;c<channels;c++){
+			for(int wh=0;wh<out416_w*out416_h;wh++){
+				fwrite(&(int_416img[channels*wh+c]),1,1,fp);		
+			}
+		}
+	}
+	else if(channels==3){
+		//printf("channel 3 img\n");
+		//printf("width : %d, height : %d, channel : %d\n",out416_w,out416_h,channels);
+		for(int c=channels-1;c>=0;c--){
+			for(int wh=0;wh<out416_w*out416_h;wh++){
+				fwrite(&(int_416img[channels*wh+c]),1,1,fp);
+			}
+		}
+	}
+	fclose(fp);
+	*/
+	stbi_image_free(img);
+	stbi_image_free(crop_img);
+	stbi_image_free(out_img);
+	free(int_img);
+	return 1;
 }
