@@ -1,7 +1,7 @@
 # License plate recognition model using embedded (cctv)
 
 - used SSD(sigle shot detector)
--[링크는 젤다의전설 주인공 이름](https://blog.naver.com/chlgusgh3315/222091134949)
+- [개발 블로그](https://blog.naver.com/chlgusgh3315/222091134949)
 
 ## example)
 
