@@ -22,7 +22,7 @@ extern "C"{
 
 #define LLABELNUM 7 // l 모델 레이블 갯수
 #define RLABELNUM 107 // r 모델 레이블 갯수
-#define DLABELNUM 24 // d 모델 레이블 갯수
+#define DLABELNUM 13 // d 모델 레이블 갯수
 #define Y3LABELNUM 107 // yolo3 모델 레이블 갯수
 
 #define MAXCHARLEN 30 // 문자열 최대 길이

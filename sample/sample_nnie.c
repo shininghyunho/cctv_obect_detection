@@ -3791,8 +3791,8 @@ void SAMPLE_SVP_NNIE_Ssd_Recognizer(void)
 void SAMPLE_SVP_NNIE_Ssd_Digit_Model(void)
 {
     HI_CHAR *pcSrcFile = "./recog_img.bgr";
-    //HI_CHAR *pcModelName = "./data/nnie_model/detection/13_3_inst.wk";
-    HI_CHAR *pcModelName = "./data/nnie_model/detection/24_1_inst.wk";
+    HI_CHAR *pcModelName = "./data/nnie_model/detection/13_3_inst.wk";
+    //HI_CHAR *pcModelName = "./data/nnie_model/detection/24_1_inst.wk";
     SAMPLE_SVP_TRACE_INFO("img : %s\n",pcSrcFile);
     SAMPLE_SVP_TRACE_INFO("model : %s\n",pcModelName);
     HI_U32 u32PicNum = 1;
